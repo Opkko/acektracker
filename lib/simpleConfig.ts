@@ -21,9 +21,11 @@ export const waiters: Waiter[] = [
 ];
 
 export function getGirlName(code: string) {
+  if (!code) return "Unknown";
   return girls.find((g) => g.code === code)?.name ?? code;
 }
 
 export function getWaiterName(code: string) {
+  if (!code) return "Unknown";
   return waiters.find((w) => w.code === code)?.name ?? code;
 }

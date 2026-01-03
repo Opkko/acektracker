@@ -61,6 +61,42 @@ function withToken(url: string, token: string | undefined) {
   }
 }
 
+function normalizeKey(key: string) {
+  return key.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function getAny(map: Map<string, unknown>, keys: string[]) {
+  for (const k of keys) {
+    const v = map.get(k);
+    if (v !== undefined && v !== null) return v;
+  }
+  return undefined;
+}
+
+function normalizeRecord(v: unknown): PaymentRecord | null {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const m = new Map<string, unknown>();
+  for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+    m.set(normalizeKey(k), val);
+  }
+
+  const girlCodeRaw = getAny(m, ["girlcode", "girl", "girlid", "gcode"]);
+  const waiterCodeRaw = getAny(m, ["waitercode", "waiter", "waiterid", "wcode"]);
+  const amountRaw = getAny(m, ["amount", "amt", "value", "total"]);
+  const createdAtRaw = getAny(m, ["createdat", "created", "date", "timestamp"]);
+
+  const girlCode = typeof girlCodeRaw === "string" ? girlCodeRaw.trim() : String(girlCodeRaw ?? "").trim();
+  const waiterCode =
+    typeof waiterCodeRaw === "string" ? waiterCodeRaw.trim() : String(waiterCodeRaw ?? "").trim();
+  const amount = typeof amountRaw === "number" ? amountRaw : Number(amountRaw);
+  const createdAt =
+    typeof createdAtRaw === "string" ? createdAtRaw.trim() : String(createdAtRaw ?? "").trim();
+
+  if (!girlCode || !waiterCode || !Number.isFinite(amount) || amount <= 0 || !createdAt) return null;
+
+  return { girlCode, waiterCode, amount, createdAt };
+}
+
 async function readRecords(): Promise<PaymentRecord[]> {
   const url = process.env.GOOGLE_SHEETS_READ_URL;
   if (!url) return localRecords;
@@ -73,7 +109,13 @@ async function readRecords(): Promise<PaymentRecord[]> {
   if (!res.ok) throw new Error(`Read failed (${res.status})`);
   const data = (await res.json()) as unknown;
   if (!Array.isArray(data)) throw new Error("Read payload must be an array");
-  return data as PaymentRecord[];
+
+  const out: PaymentRecord[] = [];
+  for (const item of data) {
+    const rec = normalizeRecord(item);
+    if (rec) out.push(rec);
+  }
+  return out;
 }
 
 async function appendRecord(rec: PaymentRecord) {
