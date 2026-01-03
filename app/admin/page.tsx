@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getGirlName, getWaiterName } from "@/lib/simpleConfig";
 
 type Row = {
@@ -21,104 +21,137 @@ export default function AdminPage() {
   const [waiters, setWaiters] = useState<Row[]>([]);
   const [days, setDays] = useState<Row[]>([]);
   const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setErr(null);
+
+    const res = await fetch("/api/payments", { cache: "no-store" });
+    if (!res.ok) {
+      const j = (await res.json().catch(() => null)) as { error?: string } | null;
+      setErr(j?.error ?? "Failed to load");
+      setLoading(false);
+      return;
+    }
+
+    const j = (await res.json()) as { summary?: Summary };
+    const s = j.summary;
+    if (!s) {
+      setErr("Missing summary");
+      setLoading(false);
+      return;
+    }
+
+    setGirls(s.perGirl.map((r) => ({ name: getGirlName(r.key), total: r.total })));
+    setWaiters(s.perWaiter.map((r) => ({ name: getWaiterName(r.key), total: r.total })));
+    setDays(s.perDay.map((r) => ({ name: r.key, total: r.total })));
+    setLastUpdated(new Date().toLocaleString());
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
-    (async () => {
-      setErr(null);
-
-      const res = await fetch("/api/payments", { cache: "no-store" });
-      if (!res.ok) {
-        const j = (await res.json().catch(() => null)) as { error?: string } | null;
-        setErr(j?.error ?? "Failed to load");
-        return;
-      }
-
-      const j = (await res.json()) as { summary?: Summary };
-      const s = j.summary;
-      if (!s) {
-        setErr("Missing summary");
-        return;
-      }
-
-      setGirls(s.perGirl.map((r) => ({ name: getGirlName(r.key), total: r.total })));
-      setWaiters(s.perWaiter.map((r) => ({ name: getWaiterName(r.key), total: r.total })));
-      setDays(s.perDay.map((r) => ({ name: r.key, total: r.total })));
-    })();
-  }, []);
+    const t0 = setTimeout(() => {
+      void load();
+    }, 0);
+    const t = setInterval(() => {
+      void load();
+    }, 5000);
+    return () => {
+      clearTimeout(t0);
+      clearInterval(t);
+    };
+  }, [load]);
 
   const grandTotal = useMemo(() => girls.reduce((s, r) => s + r.total, 0), [girls]);
 
   return (
-    <div style={{ padding: 24 }}>
-      <h2>Admin Totals</h2>
-      {err && <p style={{ color: "red" }}>{err}</p>}
-
-      <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
-        <table style={{ borderCollapse: "collapse", width: "100%", maxWidth: 420 }}>
-          <thead>
-            <tr>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ccc", padding: 8 }}>Girl</th>
-              <th style={{ textAlign: "right", borderBottom: "1px solid #ccc", padding: 8 }}>Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {girls.map((r) => (
-              <tr key={r.name}>
-                <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>{r.name}</td>
-                <td style={{ padding: 8, borderBottom: "1px solid #eee", textAlign: "right" }}>
-                  {r.total.toFixed(2)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        <table style={{ borderCollapse: "collapse", width: "100%", maxWidth: 420 }}>
-          <thead>
-            <tr>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ccc", padding: 8 }}>Waiter</th>
-              <th style={{ textAlign: "right", borderBottom: "1px solid #ccc", padding: 8 }}>Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {waiters.map((r) => (
-              <tr key={r.name}>
-                <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>{r.name}</td>
-                <td style={{ padding: 8, borderBottom: "1px solid #eee", textAlign: "right" }}>
-                  {r.total.toFixed(2)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <h1 className="pageTitle">Admin Totals</h1>
+          <p className="muted">
+            Live updates every 5 seconds{lastUpdated ? ` · Last updated: ${lastUpdated}` : ""}
+          </p>
+        </div>
+        <button className="btnGhost" onClick={load} disabled={loading}>
+          {loading ? "Refreshing…" : "Refresh"}
+        </button>
       </div>
 
-      <div style={{ marginTop: 24 }}>
-        <h3>Breakdown per day</h3>
-        <table style={{ borderCollapse: "collapse", width: "100%", maxWidth: 420 }}>
-          <thead>
-            <tr>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ccc", padding: 8 }}>Day</th>
-              <th style={{ textAlign: "right", borderBottom: "1px solid #ccc", padding: 8 }}>Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {days.map((r) => (
-              <tr key={r.name}>
-                <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>{r.name}</td>
-                <td style={{ padding: 8, borderBottom: "1px solid #eee", textAlign: "right" }}>
-                  {r.total.toFixed(2)}
-                </td>
-              </tr>
-            ))}
-            <tr>
-              <td style={{ padding: 8, fontWeight: 700 }}>Grand Total</td>
-              <td style={{ padding: 8, textAlign: "right", fontWeight: 700 }}>
-                {grandTotal.toFixed(2)}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      {err && <p className="alertError">{err}</p>}
+
+      <div className="grid" style={{ marginTop: 14 }}>
+        <div className="col6">
+          <div className="card">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Girl</th>
+                  <th className="right">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {girls.map((r) => (
+                  <tr key={r.name}>
+                    <td>{r.name}</td>
+                    <td className="right">{r.total.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="col6">
+          <div className="card">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Waiter</th>
+                  <th className="right">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {waiters.map((r) => (
+                  <tr key={r.name}>
+                    <td>{r.name}</td>
+                    <td className="right">{r.total.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="col12">
+          <div className="card">
+            <p className="muted" style={{ marginBottom: 8 }}>
+              Breakdown per day
+            </p>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Day</th>
+                  <th className="right">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {days.map((r) => (
+                  <tr key={r.name}>
+                    <td>{r.name}</td>
+                    <td className="right">{r.total.toFixed(2)}</td>
+                  </tr>
+                ))}
+                <tr>
+                  <td className="strong">Grand Total</td>
+                  <td className="right strong">{grandTotal.toFixed(2)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
   );

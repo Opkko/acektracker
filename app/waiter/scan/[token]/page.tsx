@@ -3,14 +3,15 @@
 export const runtime = 'edge';
 
 import { useMemo, useState } from "react";
-import { getGirlName, waiters } from "@/lib/simpleConfig";
+import { getGirlName } from "@/lib/simpleConfig";
 
 export default function ScanPage({ params }: { params: { token: string } }) {
   const girlCode = decodeURIComponent(params.token);
   const girlName = useMemo(() => getGirlName(girlCode), [girlCode]);
 
   const [stage, setStage] = useState<"form" | "done">("form");
-  const [waiterCode, setWaiterCode] = useState<string>(waiters[0]?.code ?? "W01");
+  const [waiterCode, setWaiterCode] = useState<string>("");
+  const [waiterPin, setWaiterPin] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
   const [err, setErr] = useState<string | null>(null);
 
@@ -22,10 +23,20 @@ export default function ScanPage({ params }: { params: { token: string } }) {
       return;
     }
 
+    if (!waiterCode.trim()) {
+      setErr("Waiter code is required");
+      return;
+    }
+
+    if (!waiterPin.trim()) {
+      setErr("Waiter PIN is required");
+      return;
+    }
+
     const res = await fetch("/api/payments", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ girlCode, waiterCode, amount: n }),
+      body: JSON.stringify({ girlCode, waiterCode, waiterPin, amount: n }),
     });
 
     if (!res.ok) {
@@ -38,49 +49,61 @@ export default function ScanPage({ params }: { params: { token: string } }) {
   };
 
   return (
-    <div style={{ padding: 24, maxWidth: 420 }}>
-      <h2>Record Payment</h2>
+    <div className="containerNarrow">
+      <h1 className="pageTitle">Record Payment</h1>
 
-      {err && <p style={{ color: "red" }}>{err}</p>}
+      {err && <p className="alertError">{err}</p>}
 
       {stage === "form" && (
         <>
-          <p>
-            Girl: <b>{girlName}</b>
-          </p>
+          <div className="card">
+            <p className="muted">
+              Girl: <span className="strong">{girlName}</span>
+            </p>
 
-          <label style={{ display: "block", marginTop: 12 }}>Waiter Code</label>
-          <select
-            style={{ width: "100%", padding: 10, marginTop: 6 }}
-            value={waiterCode}
-            onChange={(e) => setWaiterCode(e.target.value)}
-          >
-            {waiters.map((w) => (
-              <option key={w.code} value={w.code}>
-                {w.name}
-              </option>
-            ))}
-          </select>
+            <label className="label">Waiter Code</label>
+            <input
+              className="input"
+              placeholder="e.g. W01"
+              value={waiterCode}
+              onChange={(e) => setWaiterCode(e.target.value)}
+              autoCapitalize="characters"
+              autoCorrect="off"
+              inputMode="text"
+            />
 
-          <label>Amount</label>
-          <input
-            style={{ width: "100%", padding: 10, marginTop: 6 }}
-            inputMode="decimal"
-            placeholder="e.g. 180"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-          />
+            <label className="label">Waiter PIN</label>
+            <input
+              className="input"
+              placeholder="PIN"
+              type="password"
+              value={waiterPin}
+              onChange={(e) => setWaiterPin(e.target.value)}
+              inputMode="numeric"
+            />
 
-          <button style={{ width: "100%", padding: 12, marginTop: 14 }} onClick={submit}>
-            Submit
-          </button>
+            <label className="label">Amount</label>
+            <input
+              className="input"
+              inputMode="decimal"
+              placeholder="e.g. 180"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+
+            <button className="btnPrimary" onClick={submit}>
+              Submit
+            </button>
+          </div>
         </>
       )}
 
       {stage === "done" && (
         <>
-          <p>✅ Recorded successfully.</p>
-          <p>Scan next girl QR to continue.</p>
+          <div className="card">
+            <p className="success">Recorded successfully.</p>
+            <p className="muted">Scan next girl QR to continue.</p>
+          </div>
         </>
       )}
     </div>
