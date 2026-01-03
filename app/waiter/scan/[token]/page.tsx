@@ -1,7 +1,5 @@
 "use client";
 
-export const runtime = 'edge';
-
 import { useMemo, useState } from "react";
 import { getGirlName } from "@/lib/simpleConfig";
 

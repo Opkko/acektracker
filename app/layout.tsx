@@ -19,8 +19,6 @@ export const metadata: Metadata = {
   description: "Fast payment tracking for ACE.K",
 };
 
-export const runtime = 'edge';
-
 export default function RootLayout({
   children,
 }: Readonly<{
