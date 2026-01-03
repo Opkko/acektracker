@@ -1,10 +1,16 @@
 "use client";
 
+import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
-import { getGirlName } from "@/lib/simpleConfig";
+import { getGirlName, girls } from "@/lib/simpleConfig";
 
-export default function ScanPage({ params }: { params: { token: string } }) {
-  const girlCode = decodeURIComponent(params.token);
+export default function ScanPage() {
+  const params = useParams<{ token?: string | string[] }>();
+  const token =
+    typeof params?.token === "string" ? params.token : Array.isArray(params?.token) ? params?.token[0] : "";
+  const urlGirlCode = token ? decodeURIComponent(token) : "";
+  const [manualGirlCode, setManualGirlCode] = useState(girls[0]?.code ?? "G01");
+  const girlCode = urlGirlCode || manualGirlCode;
   const girlName = useMemo(() => getGirlName(girlCode), [girlCode]);
 
   const [stage, setStage] = useState<"form" | "done">("form");
@@ -55,6 +61,23 @@ export default function ScanPage({ params }: { params: { token: string } }) {
       {stage === "form" && (
         <>
           <div className="card">
+            {!urlGirlCode && (
+              <>
+                <p className="muted">Missing girl code in URL. Select a girl to continue.</p>
+                <label className="label">Girl</label>
+                <select
+                  className="select"
+                  value={manualGirlCode}
+                  onChange={(e) => setManualGirlCode(e.target.value)}
+                >
+                  {girls.map((g) => (
+                    <option key={g.code} value={g.code}>
+                      {g.name} ({g.code})
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
             <p className="muted">
               Girl: <span className="strong">{girlName}</span>
             </p>
